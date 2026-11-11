@@ -787,6 +787,9 @@ const UNREGISTERED: Record<string, readonly string[]> = {
     // 主进程生成经生成 IPC 统一成 GENERATION_REQUEST_FAILED，这两个码只进日志。
     'MODEL_EXECUTION_LEASE_EXPIRED',
     'MODEL_EXECUTION_LEASE_INVALID',
+    // 同步服务返回的 HTTP 条件码，由 sync-controller 映射成 SYNC_LEASE_* 再交给同步面板，不直接显示。
+    'LEASE_EXPIRED',
+    'LEASE_REQUIRED',
     // 模型供应商的请求与响应流失败（#474 B6）：流式失败只进调用记录，主进程生成按码分成网络失败、
     // 上下文超长（GENERATION_CONTEXT_LENGTH_EXCEEDED）或 GENERATION_PROVIDER_FAILED，渲染端生成运行时统一成租约请求失败；
     // 非流式失败只有连接测试显示，由 llm-controller 带上 HTTP 状态与供应商返回按界面语言写成说明。
