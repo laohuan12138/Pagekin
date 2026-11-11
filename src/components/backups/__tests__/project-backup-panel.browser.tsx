@@ -102,11 +102,140 @@ describe('ProjectBackupPanel', () => {
     await renderPanel()
     expect(container.textContent).not.toContain('连接并绑定')
     expect(container.textContent).not.toContain('导出本地存档')
+    expect(container.textContent).toContain('自建同步恢复')
     await act(async () => button('从本地存档恢复副本').click())
     expect(invoke).toHaveBeenCalledWith('dialog:select-project-restore-target', '恢复副本')
     expect(invoke).toHaveBeenCalledWith('project:archive-restore', { archiveGrantId: 'archive-grant', targetGrantId: 'restore-grant' })
     expect(container.textContent).toContain('restored-copy')
     expect(useProjectStore.getState().currentProject).toBeNull()
+  })
+
+  it('restores a self-hosted snapshot with no open project', async () => {
+    useProjectStore.setState({ currentProject: null })
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'sync:configure-server') {
+        return { success: true, server: { endpoint: 'http://203.0.113.10:8088/', configured: true, tokenPersistence: 'os-backed' } }
+      }
+      if (channel === 'sync:remote-status') {
+        return {
+          success: true,
+          head: {
+            projectId: 'remote-book',
+            headVersion: 1,
+            lease: null,
+            snapshots: [{
+              version: 1,
+              sha256: 'a'.repeat(64),
+              byteSize: 14,
+              createdAt: '2026-11-10T00:00:00.000Z',
+              originProjectId: 'remote-book',
+              deviceName: 'first-computer',
+              parentVersions: [],
+              forced: false,
+            }],
+          },
+          restoreTarget: { configured: false, displayName: null },
+        }
+      }
+      if (channel === 'dialog:select-project-restore-target') return { grantId: 'restore-grant' }
+      if (channel === 'project:recent-list') return []
+      if (channel === 'sync:remote-download') {
+        return {
+          success: true,
+          receipt: {
+            originProjectId: 'remote-book',
+            targetProjectId: 'remote-copy',
+            targetProjectRoot: 'C:\\novels\\remote-copy',
+            snapshotGeneration: 'snapshot-1',
+            portableDatabaseSha256: 'b'.repeat(64),
+            requiresRuntimeFreezeGuard: true,
+          },
+          binding: { localProjectId: 'remote-copy', remoteProjectId: 'remote-book', lastVersion: 1 },
+          bindingSaved: true,
+          recentProjectUpdated: true,
+        }
+      }
+      throw new Error(`Unexpected IPC: ${channel}`)
+    })
+    await renderPanel()
+    await fill('服务器地址', 'http://203.0.113.10:8088')
+    await fill('访问令牌', 'secret-token')
+    await fill('远端作品标识', 'remote-book')
+    await act(async () => button('连接并读取版本').click())
+    expect(invoke).toHaveBeenCalledWith('sync:configure-server', {
+      endpoint: 'http://203.0.113.10:8088',
+      token: 'secret-token',
+    })
+    expect(invoke).toHaveBeenCalledWith('sync:remote-status', { remoteProjectId: 'remote-book' })
+    expect(container.textContent).toContain('版本 1')
+    await act(async () => button('下载并恢复为新副本').click())
+    expect(invoke).toHaveBeenCalledWith('dialog:select-project-restore-target', '同步恢复副本')
+    expect(invoke).toHaveBeenCalledWith('sync:remote-download', {
+      remoteProjectId: 'remote-book',
+      version: 1,
+      targetGrantId: 'restore-grant',
+    })
+    expect(container.textContent).toContain('remote-copy')
+  })
+
+  it('updates the remembered restore target without asking for a folder', async () => {
+    useProjectStore.setState({ currentProject: null })
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'sync:configure-server') {
+        return { success: true, server: { endpoint: 'http://203.0.113.10:8088/', configured: true, tokenPersistence: 'os-backed' } }
+      }
+      if (channel === 'sync:remote-status') {
+        return {
+          success: true,
+          head: {
+            projectId: 'remote-book',
+            headVersion: 2,
+            lease: null,
+            snapshots: [{
+              version: 2,
+              sha256: 'a'.repeat(64),
+              byteSize: 14,
+              createdAt: '2026-11-11T00:00:00.000Z',
+              originProjectId: 'remote-book',
+              deviceName: 'first-computer',
+              parentVersions: [1],
+              forced: false,
+            }],
+          },
+          restoreTarget: { configured: true, displayName: 'synced-copy' },
+        }
+      }
+      if (channel === 'project:recent-list') return []
+      if (channel === 'sync:remote-download') {
+        return {
+          success: true,
+          receipt: {
+            originProjectId: 'remote-book',
+            targetProjectId: 'remote-copy',
+            targetProjectRoot: 'C:\\novels\\synced-copy',
+            snapshotGeneration: 'snapshot-2',
+            portableDatabaseSha256: 'b'.repeat(64),
+            requiresRuntimeFreezeGuard: true,
+          },
+          binding: { localProjectId: 'remote-copy', remoteProjectId: 'remote-book', lastVersion: 2 },
+          bindingSaved: true,
+          recentProjectUpdated: true,
+        }
+      }
+      throw new Error(`Unexpected IPC: ${channel}`)
+    })
+    await renderPanel()
+    await fill('服务器地址', 'http://203.0.113.10:8088')
+    await fill('访问令牌', 'secret-token')
+    await fill('远端作品标识', 'remote-book')
+    await act(async () => button('连接并读取版本').click())
+    await act(async () => button('更新已恢复副本').click())
+    expect(invoke).toHaveBeenCalledWith('sync:remote-download', {
+      remoteProjectId: 'remote-book',
+      version: 2,
+    })
+    expect(invoke).not.toHaveBeenCalledWith('dialog:select-project-restore-target', expect.anything())
+    expect(container.textContent).toContain('synced-copy')
   })
 
   it.each(['same', 'book', 'account'] as const)('keeps parents only for the same cloud target: %s', async change => {

@@ -13,6 +13,7 @@
   "scripts": {
     "postinstall": "node node_modules/electron/install.js",
     "dev": "vite",
+    "sync:server": "node sync-server/server.mjs",
     "clean:build": "node scripts/clean-build-output.mjs",
     "typecheck": "tsc --noEmit",
     "check:i18n": "node scripts/check-i18n-coverage.mjs",

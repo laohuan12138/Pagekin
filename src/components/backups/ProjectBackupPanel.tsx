@@ -15,6 +15,8 @@ import { randomUUID } from '../../utils/id'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Label } from '../ui/Label'
+import SyncRecoveryPanel from './SyncRecoveryPanel'
+import SyncServicePanel from './SyncServicePanel'
 
 type Notice = { kind: 'error' | 'success' | 'info'; text: string } | null
 
@@ -133,6 +135,7 @@ function ProjectBackupPanelSession({
       <p className="text-sm text-[var(--color-text)]">{text('请先打开一个项目，再导出存档或配置云备份。', 'Open a project before exporting an archive or configuring cloud backup.')}</p>
       <p className="text-xs text-[var(--color-text-muted)]">{text('恢复操作始终创建新副本，不会替换当前项目。', 'Restore always creates a new copy and never replaces the current project.')}</p>
       <Button type="button" variant="outline" onClick={() => void restoreLocal()} disabled={busy}><Download size={14} />{text('从本地存档恢复副本', 'Restore a copy from local archive')}</Button>
+      <SyncRecoveryPanel />
       {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className="text-sm">{notice.text}</p>}
     </div>
   }
@@ -350,6 +353,8 @@ function ProjectBackupPanelSession({
         {activeOperationId && <Button type="button" variant="destructive" onClick={() => void cancelActiveOperation()}>{text('取消当前云操作', 'Cancel current cloud operation')}</Button>}
       </div>
     </section>
+
+    <SyncServicePanel />
 
     {notice && <p role={notice.kind === 'error' ? 'alert' : 'status'} className="text-sm" style={{ color: notice.kind === 'error' ? 'var(--color-error-text)' : notice.kind === 'success' ? 'var(--color-success-text)' : 'var(--color-text-secondary)' }}>{notice.text}</p>}
   </div>

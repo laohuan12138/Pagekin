@@ -1,0 +1,30 @@
+services:
+  pagekin-sync:
+    build: .
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 1g
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      SYNC_TOKEN: "${SYNC_TOKEN:?set SYNC_TOKEN to a long random secret}"
+      SYNC_TRUST_PROXY: "${SYNC_TRUST_PROXY:-0}"
+      SYNC_RATE_LIMIT: "${SYNC_RATE_LIMIT:-120}"
+      SYNC_RATE_WINDOW_MS: "${SYNC_RATE_WINDOW_MS:-60000}"
+      SYNC_MAX_UPLOADS: "${SYNC_MAX_UPLOADS:-4}"
+      SYNC_MAX_BODY_BYTES: "${SYNC_MAX_BODY_BYTES:-536870912}"
+      SYNC_MAX_SNAPSHOTS: "${SYNC_MAX_SNAPSHOTS:-500}"
+      SYNC_RETAIN_SNAPSHOTS: "${SYNC_RETAIN_SNAPSHOTS:-0}"
+      SYNC_MAX_PROJECTS: "${SYNC_MAX_PROJECTS:-1000}"
+    volumes:
+      - pagekin-sync-data:/data
+
+volumes:
+  pagekin-sync-data:
