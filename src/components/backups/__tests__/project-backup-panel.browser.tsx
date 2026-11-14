@@ -110,6 +110,21 @@ describe('ProjectBackupPanel', () => {
     expect(useProjectStore.getState().currentProject).toBeNull()
   })
 
+  it('closes the current book so the recovery panel becomes available', async () => {
+    const closeProject = vi.spyOn(useProjectStore.getState(), 'closeProject').mockImplementation(async () => {
+      useProjectStore.setState({ currentProject: null })
+      return true
+    })
+    await renderPanel()
+    expect(container.textContent).not.toContain('连接并读取版本')
+    await act(async () => {
+      button('关闭当前作品').click()
+      await Promise.resolve()
+    })
+    expect(closeProject).toHaveBeenCalledOnce()
+    expect(container.textContent).toContain('连接并读取版本')
+  })
+
   it('restores a self-hosted snapshot with no open project', async () => {
     useProjectStore.setState({ currentProject: null })
     invoke.mockImplementation(async (channel: string) => {
