@@ -95,6 +95,11 @@ export interface SyncServerConfigureRequest {
   token: string
 }
 
+export interface SyncRecoveryView {
+  server: SyncServerView
+  remoteProjectId: string | null
+}
+
 export interface SyncRemoteStatusRequest {
   remoteProjectId: string
 }
@@ -167,6 +172,10 @@ export interface SyncChannels {
   'sync:configure-server': {
     args: [request: SyncServerConfigureRequest]
     return: { success: true; server: SyncServerView } | SyncFailure
+  }
+  'sync:recovery-view': {
+    args: []
+    return: { success: true; view: SyncRecoveryView } | SyncFailure
   }
   'sync:remote-status': {
     args: [request: SyncRemoteStatusRequest]

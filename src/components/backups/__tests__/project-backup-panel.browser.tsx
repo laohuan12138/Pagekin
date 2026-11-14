@@ -110,19 +110,64 @@ describe('ProjectBackupPanel', () => {
     expect(useProjectStore.getState().currentProject).toBeNull()
   })
 
-  it('closes the current book so the recovery panel becomes available', async () => {
+  it('closes the current book from backup settings', async () => {
     const closeProject = vi.spyOn(useProjectStore.getState(), 'closeProject').mockImplementation(async () => {
       useProjectStore.setState({ currentProject: null })
       return true
     })
     await renderPanel()
-    expect(container.textContent).not.toContain('连接并读取版本')
+    expect(container.textContent).toContain('连接并读取版本')
     await act(async () => {
       button('关闭当前作品').click()
       await Promise.resolve()
     })
     expect(closeProject).toHaveBeenCalledOnce()
     expect(container.textContent).toContain('连接并读取版本')
+  })
+
+  it('restores saved recovery settings and connects with the saved token', async () => {
+    useProjectStore.setState({ currentProject: null })
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'sync:recovery-view') {
+        return {
+          success: true,
+          view: {
+            server: { endpoint: 'http://203.0.113.10:8088/', configured: true, tokenPersistence: 'os-backed' },
+            remoteProjectId: 'remote-book',
+          },
+        }
+      }
+      if (channel === 'sync:remote-status') {
+        return {
+          success: true,
+          head: {
+            projectId: 'remote-book',
+            headVersion: 2,
+            lease: null,
+            snapshots: [{
+              version: 2,
+              sha256: 'a'.repeat(64),
+              byteSize: 14,
+              createdAt: '2026-11-11T00:00:00.000Z',
+              originProjectId: 'remote-book',
+              deviceName: 'first-computer',
+              parentVersions: [1],
+              forced: false,
+            }],
+          },
+          restoreTarget: { configured: false, displayName: null },
+        }
+      }
+      throw new Error(`Unexpected IPC: ${channel}`)
+    })
+    await renderPanel()
+    await vi.waitFor(() => expect(input('服务器地址').value).toBe('http://203.0.113.10:8088/'))
+    expect(input('远端作品标识').value).toBe('remote-book')
+    expect(input('访问令牌').value).toBe('')
+    await act(async () => button('连接并读取版本').click())
+    expect(invoke).not.toHaveBeenCalledWith('sync:configure-server', expect.anything())
+    expect(invoke).toHaveBeenCalledWith('sync:remote-status', { remoteProjectId: 'remote-book' })
+    expect(container.textContent).toContain('版本 2')
   })
 
   it('restores a self-hosted snapshot with no open project', async () => {

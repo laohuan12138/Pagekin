@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CloudDownload, RefreshCw } from 'lucide-react'
 
 import { ipc } from '../../services/ipc-client'
@@ -28,8 +28,25 @@ export default function SyncRecoveryPanel() {
   const [head, setHead] = useState<SyncHeadView | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<SyncRestoreTargetView>({ configured: false, displayName: null })
   const [selectedVersion, setSelectedVersion] = useState(0)
+  const [savedEndpoint, setSavedEndpoint] = useState<string | null>(null)
+  const [savedToken, setSavedToken] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
+
+  const sameEndpoint = (left: string, right: string) => left.trim().replace(/\/+$/u, '') === right.trim().replace(/\/+$/u, '')
+  const canUseSavedCredential = savedToken && savedEndpoint !== null && sameEndpoint(endpoint, savedEndpoint)
+
+  useEffect(() => {
+    let active = true
+    void ipc.invoke('sync:recovery-view').then(result => {
+      if (!active || !result.success) return
+      setEndpoint(result.view.server.endpoint ?? '')
+      setRemoteProjectId(result.view.remoteProjectId ?? '')
+      setSavedEndpoint(result.view.server.endpoint)
+      setSavedToken(result.view.server.configured)
+    }).catch(() => { /* A missing local config is not an error until the author connects. */ })
+    return () => { active = false }
+  }, [])
 
   const explain = (code: string) => {
     switch (code) {
@@ -60,11 +77,17 @@ export default function SyncRecoveryPanel() {
   }
 
   const loadRemote = () => run(async () => {
-    const configured = await ipc.invoke('sync:configure-server', {
-      endpoint: endpoint.trim(),
-      token,
-    })
-    if (!configured.success) throw new Error(configured.errorCode)
+    if (token) {
+      const configured = await ipc.invoke('sync:configure-server', {
+        endpoint: endpoint.trim(),
+        token,
+      })
+      if (!configured.success) throw new Error(configured.errorCode)
+      setSavedEndpoint(configured.server.endpoint)
+      setSavedToken(configured.server.configured)
+    } else if (!canUseSavedCredential) {
+      throw new Error('SYNC_CREDENTIAL_UNAVAILABLE')
+    }
     const result = await ipc.invoke('sync:remote-status', {
       remoteProjectId: remoteProjectId.trim(),
     })
@@ -72,6 +95,7 @@ export default function SyncRecoveryPanel() {
     setConnected(true)
     setToken('')
     setHead(result.head)
+    setRemoteProjectId(result.head.projectId)
     setRestoreTarget(result.restoreTarget)
     setSelectedVersion(result.head.snapshots.at(-1)?.version ?? 0)
     setNotice({
@@ -137,7 +161,7 @@ export default function SyncRecoveryPanel() {
 
   return <section className="space-y-3 rounded-lg border border-[var(--color-border)] p-4" data-testid="sync-recovery-panel">
     <h3 className="flex items-center gap-2 text-sm font-semibold"><CloudDownload size={16} />{text('自建同步恢复', 'Self-hosted sync recovery')}</h3>
-    <p className="text-xs text-[var(--color-text-muted)]">{text('连接只读取远端版本列表。第一次下载选择目录并另存为新副本；之后“更新已恢复副本”会直接覆盖上次目录，旧副本保留为 .pagekin-sync-backup。', 'Connecting only reads the remote version list. The first download chooses a folder and saves a new copy; later “Update restored copy” replaces that folder and keeps the previous copy as .pagekin-sync-backup.')}</p>
+    <p className="text-xs text-[var(--color-text-muted)]">{text('服务器地址、作品标识和已保存的令牌会自动填入；令牌不会显示，留空即使用已保存令牌。连接只读取远端版本列表。第一次下载选择目录并另存为新副本；之后“更新已恢复副本”会直接覆盖上次目录，旧副本保留为 .pagekin-sync-backup。', 'The server address, project ID and saved token are filled automatically; the token is never displayed, so leave it blank to use the saved one. Connecting only reads the remote version list. The first download chooses a folder and saves a new copy; later “Update restored copy” replaces that folder and keeps the previous copy as .pagekin-sync-backup.')}</p>
 
     <div className="grid gap-3 sm:grid-cols-2">
       <div><Label htmlFor="sync-recovery-endpoint">{text('服务器地址', 'Server endpoint')}</Label><Input id="sync-recovery-endpoint" value={endpoint} placeholder="http://sync.example.com:8088" onChange={event => {
@@ -145,7 +169,7 @@ export default function SyncRecoveryPanel() {
         setConnected(false)
         setHead(null)
       }} /></div>
-      <div><Label htmlFor="sync-recovery-token">{text('访问令牌', 'Access token')}</Label><Input id="sync-recovery-token" type="password" value={token} onChange={event => {
+      <div><Label htmlFor="sync-recovery-token">{text('访问令牌', 'Access token')}</Label><Input id="sync-recovery-token" type="password" value={token} placeholder={canUseSavedCredential ? text('留空使用已保存令牌', 'Leave blank to use the saved token') : ''} onChange={event => {
         setToken(event.target.value)
         setConnected(false)
         setHead(null)
@@ -157,7 +181,7 @@ export default function SyncRecoveryPanel() {
     </div>
 
     <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" disabled={busy || !endpoint.trim() || !token || !remoteProjectId.trim()} onClick={() => void loadRemote()}>
+      <Button type="button" variant="outline" disabled={busy || !endpoint.trim() || !remoteProjectId.trim() || (!token && !canUseSavedCredential)} onClick={() => void loadRemote()}>
         <CloudDownload size={14} />{text('连接并读取版本', 'Connect and load versions')}
       </Button>
       {connected && <Button type="button" variant="outline" disabled={busy || !remoteProjectId.trim()} onClick={() => void refreshRemote()}>

@@ -64,6 +64,8 @@ interface SyncConfigFacade {
 interface SyncRestoreTargetFacade {
   get(remoteProjectId: string): SyncRestoreTarget | null
   save(remoteProjectId: string, targetRoot: string): void
+  remember(remoteProjectId: string): void
+  lastRemoteProjectId(): string | null
   clear(remoteProjectId: string): void
 }
 
@@ -334,13 +336,29 @@ export function registerSyncController(injected?: SyncControllerDependencies): v
     }
   })
 
+  deps.ipc.handle('sync:recovery-view', () => {
+    try {
+      return {
+        success: true as const,
+        view: {
+          server: deps.configStore.view('').server,
+          remoteProjectId: restoreTargets.lastRemoteProjectId(),
+        },
+      }
+    } catch (error) {
+      return failure(error)
+    }
+  })
+
   deps.ipc.handle('sync:remote-status', async (_event, raw) => {
     try {
       const remote = remoteProjectId(record(raw).remoteProjectId)
       const { client } = clientFor()
+      const head = await client.status(remote)
+      try { restoreTargets.remember(remote) } catch { /* Recovery can still continue without the convenience memory. */ }
       return {
         success: true as const,
-        head: await client.status(remote),
+        head,
         restoreTarget: restoreTargetView(remote),
       }
     } catch (error) {

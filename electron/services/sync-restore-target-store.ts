@@ -14,6 +14,7 @@ interface StoredTarget {
 interface StoreDocument {
   version: 1
   targets: Record<string, StoredTarget>
+  lastRemoteProjectId?: string
 }
 
 function emptyDocument(): StoreDocument {
@@ -22,7 +23,7 @@ function emptyDocument(): StoreDocument {
 
 function parseDocument(value: unknown): StoreDocument {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return emptyDocument()
-  const document = value as { version?: unknown; targets?: unknown }
+  const document = value as { version?: unknown; targets?: unknown; lastRemoteProjectId?: unknown }
   if (document.version !== 1 || !document.targets || typeof document.targets !== 'object' || Array.isArray(document.targets)) {
     return emptyDocument()
   }
@@ -34,7 +35,10 @@ function parseDocument(value: unknown): StoreDocument {
       targets[remoteProjectId] = { targetRoot: path.resolve(targetRoot) }
     }
   }
-  return { version: 1, targets }
+  const last = typeof document.lastRemoteProjectId === 'string' && document.lastRemoteProjectId.length > 0
+    ? document.lastRemoteProjectId
+    : undefined
+  return { version: 1, targets, ...(last ? { lastRemoteProjectId: last } : {}) }
 }
 
 /** App-data sidecar for the last restored copy of each remote project. */
@@ -73,13 +77,31 @@ export class SyncRestoreTargetStore {
   save(remoteProjectId: string, targetRoot: string): void {
     const document = this.#read()
     document.targets[remoteProjectId] = { targetRoot: path.resolve(targetRoot) }
+    document.lastRemoteProjectId = remoteProjectId
     this.#write(document)
+  }
+
+  remember(remoteProjectId: string): void {
+    const document = this.#read()
+    document.lastRemoteProjectId = remoteProjectId
+    this.#write(document)
+  }
+
+  lastRemoteProjectId(): string | null {
+    return this.#read().lastRemoteProjectId ?? null
   }
 
   clear(remoteProjectId: string): void {
     const document = this.#read()
-    if (!(remoteProjectId in document.targets)) return
-    delete document.targets[remoteProjectId]
-    this.#write(document)
+    let changed = false
+    if (remoteProjectId in document.targets) {
+      delete document.targets[remoteProjectId]
+      changed = true
+    }
+    if (document.lastRemoteProjectId === remoteProjectId) {
+      delete document.lastRemoteProjectId
+      changed = true
+    }
+    if (changed) this.#write(document)
   }
 }

@@ -354,9 +354,11 @@ function ProjectBackupPanelSession({
       </div>
     </section>
 
+    <SyncRecoveryPanel />
+
     <section className="space-y-3 rounded-lg border border-[var(--color-border)] p-4">
-      <h3 className="text-sm font-semibold">{text('更新已恢复副本', 'Update restored copy')}</h3>
-      <p className="text-xs text-[var(--color-text-muted)]">{text('要更新上次恢复的副本，先关闭当前作品。关闭后会回到书房；重新进入“项目备份”即可看到“自建同步恢复”和“更新已恢复副本”。', 'To update the last restored copy, close the current book first. You will return to the library; reopen Project backup to see “Self-hosted sync recovery” and “Update restored copy”.')}</p>
+      <h3 className="text-sm font-semibold">{text('更新当前打开的副本', 'Update the open copy')}</h3>
+      <p className="text-xs text-[var(--color-text-muted)]">{text('如果“更新已恢复副本”指向的是当前打开的作品，更新会被拒绝。先关闭当前作品，再点击“更新已恢复副本”。', 'If “Update restored copy” points at the currently open book, the update is refused. Close the current book first, then update the restored copy.')}</p>
       <Button type="button" variant="outline" disabled={busy} onClick={() => void run(async () => { await useProjectStore.getState().closeProject() })}>
         {text('关闭当前作品', 'Close current book')}
       </Button>

@@ -198,6 +198,15 @@ describe('sync controller', () => {
     }
     expect(remoteStatus).toMatchObject({ success: true, head: { headVersion: 1 } })
 
+    const recoveryView = await call('sync:recovery-view', undefined) as {
+      success: true
+      view: { server: { endpoint: string | null; configured: boolean }; remoteProjectId: string | null }
+    }
+    expect(recoveryView.view).toMatchObject({
+      server: { endpoint: 'http://127.0.0.1:8787/', configured: true },
+      remoteProjectId: 'local-project',
+    })
+
     const remoteDownload = await call('sync:remote-download', {
       remoteProjectId: 'local-project',
       version: 1,
